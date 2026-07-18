@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase/client';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
 import { Profile, UserRole } from '@/lib/types';
 
 interface AuthContextType {
@@ -12,6 +12,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName: string, role?: UserRole) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -75,26 +76,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    if (!isSupabaseConfigured) return { error: 'Authentication is not configured. Please check your environment variables.' };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error: error.message };
+      return { error: null };
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to connect. Please check your network and try again.' };
+    }
   };
 
   const signUp = async (email: string, password: string, fullName: string, role: UserRole = 'sales_officer') => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName, role } },
-    });
-    if (error) return { error: error.message };
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
+    if (!isSupabaseConfigured) return { error: 'Authentication is not configured. Please check your environment variables.' };
+    try {
+      const { data, error } = await supabase.auth.signUp({
         email,
-        full_name: fullName,
-        role,
+        password,
+        options: { data: { full_name: fullName, role } },
       });
+      if (error) return { error: error.message };
+      // The database trigger (on_auth_user_created) auto-creates the profile.
+      // No manual upsert needed.
+      if (data.user) {
+        await fetchProfile(data.user.id);
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to connect. Please check your network and try again.' };
     }
-    return { error: null };
+  };
+
+  const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured) return { error: 'Authentication is not configured. Please check your environment variables.' };
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) return { error: error.message };
+      return { error: null };
+    } catch (err: any) {
+      return { error: err?.message || 'Failed to start Google sign-in. Please try again.' };
+    }
   };
 
   const signOut = async () => {
@@ -105,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
