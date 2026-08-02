@@ -14,6 +14,11 @@ export const metadata: Metadata = {
   title: 'AquaFlow ERP — Water Manufacturing Management System',
   description: 'Enterprise water manufacturing management: production, inventory, sales, warehouse, and financials in real time.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
   openGraph: {
     title: 'AquaFlow ERP',
     description: 'Enterprise Water Manufacturing Management System',
