@@ -11,7 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Droplets, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { UserRole } from '@/lib/types';
-import { isSupabaseConfigured } from '@/lib/supabase/client';
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -145,12 +144,6 @@ export default function AuthPage() {
               <CardDescription>Sign in to your account or create a new one</CardDescription>
             </CardHeader>
             <CardContent>
-              {!isSupabaseConfigured && (
-                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                  Authentication is not configured. Set up Supabase environment variables to enable login.
-                </div>
-              )}
-
               <Tabs defaultValue="signin">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="signin">Sign In</TabsTrigger>

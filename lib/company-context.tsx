@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 
 export interface CompanySettings {
   id: string;
@@ -33,10 +33,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchCompany = useCallback(async () => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
     const { data, error } = await supabase
       .from('company_settings')
       .select('*')

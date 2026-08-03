@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 import { Profile, UserRole } from '@/lib/types';
 
 interface AuthContextType {
@@ -39,10 +39,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
     let mounted = true;
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -80,7 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, fetchProfile]);
 
   const signIn = async (email: string, password: string) => {
-    if (!isSupabaseConfigured) return { error: 'Authentication is not configured. Please check your environment variables.' };
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { error: error.message };
@@ -91,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string, role: UserRole = 'sales_officer') => {
-    if (!isSupabaseConfigured) return { error: 'Authentication is not configured. Please check your environment variables.' };
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -111,7 +105,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    if (!isSupabaseConfigured) return { error: 'Authentication is not configured. Please check your environment variables.' };
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

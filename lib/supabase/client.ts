@@ -1,16 +1,13 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+const FALLBACK_URL = 'https://ylkmcttajcwovhsruwke.supabase.co';
+const FALLBACK_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlsa21jdHRhamN3b3Zoc3J1d2tlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMzUxMDQsImV4cCI6MjA5OTYxMTEwNH0.rXd_5Q65KlYioVxtjMfVZTOJd-7aXLLzTaN45hld1CM';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase environment variables are not set. Please check your .env file.');
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || FALLBACK_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || FALLBACK_KEY;
 
-// Use placeholder values when env vars are missing so createClient doesn't throw.
-// The app handles auth/data errors gracefully downstream.
-const clientUrl = supabaseUrl || 'https://placeholder.supabase.co';
-const clientKey = supabaseAnonKey || 'placeholder-anon-key';
+const clientUrl = supabaseUrl;
+const clientKey = supabaseAnonKey;
 
 export const supabase: SupabaseClient = createClient(clientUrl, clientKey, {
   auth: {
