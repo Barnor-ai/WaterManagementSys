@@ -53,6 +53,10 @@ export default function AuthPage() {
     if (error) {
       setError(error);
       setSubmitting(false);
+    } else {
+      // The onAuthStateChange listener will fire and fetchProfile,
+      // which sets the profile and triggers the redirect effect above.
+      // Keep the spinner showing so the user sees feedback.
     }
   };
 

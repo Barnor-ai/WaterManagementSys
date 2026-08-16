@@ -35,6 +35,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Error fetching profile:', error);
       return;
     }
+    if (!data) {
+      const { data: userData } = await supabase.auth.getUser();
+      const authUser = userData.user;
+      if (authUser) {
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authUser.id,
+            email: authUser.email || '',
+            full_name: (authUser.user_metadata?.full_name as string) || authUser.email || 'User',
+            role: (authUser.user_metadata?.role as UserRole) || 'sales_officer',
+          })
+          .select('*')
+          .maybeSingle();
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+          return;
+        }
+        setProfile(newProfile as Profile | null);
+      }
+      return;
+    }
     setProfile(data as Profile | null);
   }, []);
 
@@ -56,7 +78,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
+        (async () => {
+          await fetchProfile(session.user.id);
+        })();
       } else {
         setProfile(null);
       }
