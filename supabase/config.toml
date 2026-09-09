@@ -1,0 +1,5 @@
+[functions.ai-assistant]
+verify_jwt = true
+
+[functions.invite-user]
+verify_jwt = true

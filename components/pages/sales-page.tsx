@@ -71,6 +71,7 @@ export function SalesPage() {
       quantity: newItem.quantity,
       unit_price,
       total_price,
+      organization_id: null,
       product,
     };
     setItems([...items, item]);
@@ -92,82 +93,27 @@ export function SalesPage() {
     const amount_paid = form.sale_type === 'cash' ? total : 0;
     const balance = form.sale_type === 'cash' ? 0 : total;
 
-    const saleData: any = {
-      invoice_number: form.invoice_number,
-      customer_id: form.customer_id || null,
-      sale_type: form.sale_type,
-      sale_date: form.sale_date,
-      subtotal,
-      discount: Number(form.discount),
-      tax: Number(form.tax),
-      total_amount: total,
-      amount_paid,
-      balance,
-      status: 'completed',
-      salesperson: profile?.full_name ?? user?.email,
-      notes: form.notes,
-      created_by: user?.id,
-    };
-
-    const { data: sale, error } = await supabase.from('sales').insert(saleData).select().single();
+    const { error } = await supabase.rpc('create_sale', {
+      p_invoice_number: form.invoice_number,
+      p_customer_id: form.customer_id || null,
+      p_sale_type: form.sale_type,
+      p_sale_date: form.sale_date,
+      p_subtotal: subtotal,
+      p_total_amount: total,
+      p_items: items.map((item) => ({ product_id: item.product_id, quantity: item.quantity, unit_price: item.unit_price, total_price: item.total_price })),
+      p_discount: Number(form.discount),
+      p_tax: Number(form.tax),
+      p_amount_paid: amount_paid,
+      p_balance: balance,
+      p_salesperson: profile?.full_name ?? user?.email ?? null,
+      p_notes: form.notes || null,
+    });
 
     if (error) {
-      toast.error('Failed to create sale: ' + error.message);
+      toast.error('Unable to record the sale. Please check stock and try again.');
+      console.error('create sale failed', error);
       setSubmitting(false);
       return;
-    }
-
-    // Insert sale items
-    const saleItemsData = items.map((i) => ({
-      sale_id: sale.id,
-      product_id: i.product_id,
-      quantity: i.quantity,
-      unit_price: i.unit_price,
-      total_price: i.total_price,
-    }));
-    await supabase.from('sale_items').insert(saleItemsData);
-
-    // Deduct stock from inventory and record stock movements
-    for (const item of items) {
-      const { data: inv } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('product_id', item.product_id)
-        .maybeSingle();
-
-      if (inv) {
-        const newSold = Number(inv.sold_stock) + item.quantity;
-        const newCurrent = Number(inv.current_stock) - item.quantity;
-        await supabase
-          .from('inventory')
-          .update({
-            sold_stock: newSold,
-            current_stock: newCurrent,
-            last_updated: new Date().toISOString(),
-          })
-          .eq('id', inv.id);
-      }
-
-      await supabase.from('stock_movements').insert({
-        product_id: item.product_id,
-        movement_type: 'sale',
-        quantity: item.quantity,
-        reference_type: 'sale',
-        reference_id: sale.id,
-        notes: `Invoice ${form.invoice_number}`,
-        created_by: user?.id,
-      });
-    }
-
-    // Update customer outstanding balance for credit sales
-    if (form.customer_id && balance > 0) {
-      const customer = customers.find((c) => c.id === form.customer_id);
-      if (customer) {
-        await supabase
-          .from('customers')
-          .update({ outstanding_balance: customer.outstanding_balance + balance })
-          .eq('id', form.customer_id);
-      }
     }
 
     toast.success('Sale recorded successfully');

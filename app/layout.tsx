@@ -38,14 +38,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider>
-          <CurrencyProvider>
-            <CompanyProvider>
-              <AuthProvider>
+          <AuthProvider>
+            <CurrencyProvider>
+              <CompanyProvider>
                 {children}
                 <Toaster />
-              </AuthProvider>
-            </CompanyProvider>
-          </CurrencyProvider>
+              </CompanyProvider>
+            </CurrencyProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -13,6 +13,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, fullName: string, role?: UserRole) => Promise<{ error: string | null }>;
   signInWithGoogle: () => Promise<{ error: string | null }>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
+  updatePassword: (password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -33,28 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle();
     if (error) {
       console.error('Error fetching profile:', error);
-      return;
-    }
-    if (!data) {
-      const { data: userData } = await supabase.auth.getUser();
-      const authUser = userData.user;
-      if (authUser) {
-        const { data: newProfile, error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authUser.id,
-            email: authUser.email || '',
-            full_name: (authUser.user_metadata?.full_name as string) || authUser.email || 'User',
-            role: (authUser.user_metadata?.role as UserRole) || 'sales_officer',
-          })
-          .select('*')
-          .maybeSingle();
-        if (insertError) {
-          console.error('Error creating profile:', insertError);
-          return;
-        }
-        setProfile(newProfile as Profile | null);
-      }
+      setProfile(null);
       return;
     }
     setProfile(data as Profile | null);
@@ -109,19 +90,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, role: UserRole = 'sales_officer') => {
+  const signUp = async (email: string, password: string, fullName: string, _role?: UserRole) => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName, role } },
+        options: { data: { full_name: fullName } },
       });
       if (error) return { error: error.message };
-      // The database trigger (on_auth_user_created) auto-creates the profile.
-      // No manual upsert needed.
-      if (data.user) {
-        await fetchProfile(data.user.id);
-      }
+      if (data.user) await fetchProfile(data.user.id);
       return { error: null };
     } catch (err: any) {
       return { error: err?.message || 'Failed to connect. Please check your network and try again.' };
@@ -143,6 +120,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+      return { error: error?.message ?? null };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err.message : 'Unable to send the password reset email.' };
+    }
+  };
+
+  const updatePassword = async (password: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      return { error: error?.message ?? null };
+    } catch (err: unknown) {
+      return { error: err instanceof Error ? err.message : 'Unable to update your password.' };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
@@ -151,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signInWithGoogle, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signInWithGoogle, resetPassword, updatePassword, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

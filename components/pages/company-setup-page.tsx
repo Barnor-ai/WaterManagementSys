@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 
 export function CompanySetupPage() {
   const { user } = useAuth();
-  const { company, refresh } = useCompany();
+  const { company, organization, refresh } = useCompany();
   const { currencies } = useCurrency();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -24,6 +24,7 @@ export function CompanySetupPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(company?.logo_url ?? null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     name: company?.name ?? '',
     address: company?.address ?? '',
@@ -49,22 +50,28 @@ export function CompanySetupPage() {
       return;
     }
 
+    if (!organization) {
+      setPendingLogoFile(file);
+      setLogoUrl(URL.createObjectURL(file));
+      toast.success('Logo selected. It will be uploaded when setup is completed.');
+      return;
+    }
+
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
-      const fileName = `logo-${user.id}-${Date.now()}.${ext}`;
+      const ext = file.name.split('.').pop() || 'png';
+      const fileName = `${organization.id}/logo-${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from('company-logos')
-        .upload(fileName, file, { cacheControl: '3600', upsert: true });
-
+        .upload(fileName, file, { cacheControl: '3600', upsert: true, contentType: file.type });
       if (uploadError) throw uploadError;
-
       const { data: urlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
-      const url = `${urlData.publicUrl}?t=${Date.now()}`;
-      setLogoUrl(url);
+      setLogoUrl(`${urlData.publicUrl}?t=${Date.now()}`);
+      setPendingLogoFile(null);
       toast.success('Logo uploaded');
-    } catch (err: any) {
-      toast.error('Upload failed: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to upload the logo';
+      toast.error(message);
     } finally {
       setUploading(false);
     }
@@ -90,21 +97,50 @@ export function CompanySetupPage() {
 
     setSaving(true);
     try {
-      const payload = { ...form, logo_url: logoUrl, is_setup_complete: true, updated_at: new Date().toISOString() };
-
-      if (company?.id) {
-        const { error } = await supabase.from('company_settings').update(payload).eq('id', company.id);
+      let organizationId = organization?.id;
+      if (!organizationId) {
+        const { data, error } = await supabase.rpc('create_organization', {
+          p_company_name: form.name.trim(),
+          p_currency_code: form.currency_code,
+          p_country: form.country || null,
+        });
         if (error) throw error;
-      } else {
-        const { error } = await supabase.from('company_settings').insert(payload);
-        if (error) throw error;
+        organizationId = data as string;
       }
 
+      let uploadedLogoUrl = logoUrl;
+      if (pendingLogoFile) {
+        const ext = pendingLogoFile.name.split('.').pop() || 'png';
+        const fileName = `${organizationId}/logo-${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('company-logos')
+          .upload(fileName, pendingLogoFile, { cacheControl: '3600', upsert: true, contentType: pendingLogoFile.type });
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
+        uploadedLogoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      }
+
+      const { error: setupError } = await supabase.rpc('complete_organization_setup', {
+        p_address: form.address || null,
+        p_city: form.city || null,
+        p_state: form.state || null,
+        p_phone: form.phone || null,
+        p_email: form.email || null,
+        p_website: form.website || null,
+        p_tax_id: form.tax_id || null,
+        p_registration_number: form.registration_number || null,
+        p_logo_url: uploadedLogoUrl,
+        p_tax_rate: 0,
+        p_invoice_prefix: 'INV',
+        p_fiscal_year_start: 'January',
+      });
+      if (setupError) throw setupError;
       await refresh();
       toast.success('Company setup complete!');
       router.replace('/dashboard');
-    } catch (err: any) {
-      toast.error('Failed to save: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to save company setup';
+      toast.error(message);
     } finally {
       setSaving(false);
     }

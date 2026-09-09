@@ -1,7 +1,9 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase/client';
+import { Organization } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
 
 export interface CompanySettings {
   id: string;
@@ -22,33 +24,61 @@ export interface CompanySettings {
 
 interface CompanyContextType {
   company: CompanySettings | null;
+  organization: Organization | null;
   loading: boolean;
   refresh: () => Promise<void>;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
+function mapOrganization(organization: Organization): CompanySettings {
+  return {
+    id: organization.id,
+    name: organization.company_name,
+    logo_url: organization.logo_url,
+    address: organization.address,
+    city: organization.city,
+    state: organization.state,
+    country: organization.country,
+    phone: organization.phone,
+    email: organization.email,
+    website: null,
+    tax_id: organization.tax_number,
+    registration_number: organization.business_registration_number,
+    currency_code: organization.currency_code,
+    is_setup_complete: organization.is_setup_complete,
+  };
+}
+
 export function CompanyProvider({ children }: { children: ReactNode }) {
-  const [company, setCompany] = useState<CompanySettings | null>(null);
+  const { profile, loading: authLoading } = useAuth();
+  const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchCompany = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('company_settings')
-      .select('*')
-      .maybeSingle();
-    if (!error && data) {
-      setCompany(data as CompanySettings);
+    if (authLoading) return;
+    if (!profile?.organization_id) {
+      setOrganization(null);
+      setLoading(false);
+      return;
     }
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', profile.organization_id)
+      .maybeSingle();
+    if (error) console.error('Error fetching organization:', error);
+    setOrganization(data as Organization | null);
     setLoading(false);
-  }, []);
+  }, [authLoading, profile?.organization_id]);
 
   useEffect(() => {
     fetchCompany();
   }, [fetchCompany]);
 
   return (
-    <CompanyContext.Provider value={{ company, loading, refresh: fetchCompany }}>
+    <CompanyContext.Provider value={{ company: organization ? mapOrganization(organization) : null, organization, loading, refresh: fetchCompany }}>
       {children}
     </CompanyContext.Provider>
   );

@@ -22,29 +22,44 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("VITE_SUPABASE_URL") ?? "";
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-
+    const authorization = req.headers.get("Authorization");
+    if (!authorization?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const token = authorization.slice("Bearer ".length);
+    const caller = createClient(supabaseUrl, supabaseAnonKey, { global: { headers: { Authorization: authorization } } });
+    const { data: authData, error: authError } = await caller.auth.getUser(token);
+    if (authError || !authData.user) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("organization_id").eq("id", authData.user.id).maybeSingle();
+    if (profileError || !profile?.organization_id) {
+      return new Response(JSON.stringify({ error: "Organization membership required" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const organizationId = profile.organization_id;
 
-    // Gather business data for context
+    // Gather business data for the authenticated organization only
     const [
       batches, sales, saleItems, inventory, customers, suppliers,
       expenses, payments, machines, products, rawMaterials, bottles
     ] = await Promise.all([
-      supabase.from("production_batches").select("*, product:products(name), machine:machines(name)"),
-      supabase.from("sales").select("*, customer:customers(name)"),
-      supabase.from("sale_items").select("*, product:products(name)"),
-      supabase.from("inventory").select("*, product:products(name, cost_per_unit, unit_price)"),
-      supabase.from("customers").select("*"),
-      supabase.from("suppliers").select("*"),
-      supabase.from("expenses").select("*"),
-      supabase.from("payments").select("*, customer:customers(name)"),
-      supabase.from("machines").select("*"),
-      supabase.from("products").select("*"),
-      supabase.from("raw_materials").select("*"),
-      supabase.from("bottles").select("*"),
+      supabase.from("production_batches").select("*, product:products(name), machine:machines(name)").eq("organization_id", organizationId),
+      supabase.from("sales").select("*, customer:customers(name)").eq("organization_id", organizationId),
+      supabase.from("sale_items").select("*, product:products(name)").eq("organization_id", organizationId),
+      supabase.from("inventory").select("*, product:products(name, cost_per_unit, unit_price)").eq("organization_id", organizationId),
+      supabase.from("customers").select("*").eq("organization_id", organizationId),
+      supabase.from("suppliers").select("*").eq("organization_id", organizationId),
+      supabase.from("expenses").select("*").eq("organization_id", organizationId),
+      supabase.from("payments").select("*, customer:customers(name)").eq("organization_id", organizationId),
+      supabase.from("machines").select("*").eq("organization_id", organizationId),
+      supabase.from("products").select("*").eq("organization_id", organizationId),
+      supabase.from("raw_materials").select("*").eq("organization_id", organizationId),
+      supabase.from("bottles").select("*").eq("organization_id", organizationId),
     ]);
 
     // Build a comprehensive business context

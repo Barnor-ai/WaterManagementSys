@@ -69,59 +69,28 @@ export function ProductionPage() {
     e.preventDefault();
     setSubmitting(true);
 
-    const batchData: any = {
-      ...form,
-      machine_id: form.machine_id || null,
-      product_id: form.product_id || null,
-      bottle_size_ml: Number(form.bottle_size_ml),
-      quantity_produced: Number(form.quantity_produced),
-      rejected_quantity: Number(form.rejected_quantity),
-      damaged_bottles: Number(form.damaged_bottles),
-      production_cost: Number(form.production_cost),
-      waste_percentage: Number(wastePct.toFixed(2)),
-      status: 'completed',
-      created_by: user?.id,
-    };
-
-    const { data, error } = await supabase.from('production_batches').insert(batchData).select().single();
+    const { error } = await supabase.rpc('record_production', {
+      p_batch_number: form.batch_number,
+      p_production_date: form.production_date,
+      p_shift: form.shift,
+      p_operator: form.operator,
+      p_product_id: form.product_id,
+      p_bottle_size_ml: Number(form.bottle_size_ml),
+      p_quantity_produced: Number(form.quantity_produced),
+      p_machine_id: form.machine_id || null,
+      p_rejected_quantity: Number(form.rejected_quantity),
+      p_damaged_bottles: Number(form.damaged_bottles),
+      p_waste_percentage: Number(wastePct.toFixed(2)),
+      p_production_cost: Number(form.production_cost),
+      p_notes: form.notes || null,
+      p_branch_id: null,
+    });
 
     if (error) {
-      toast.error('Failed to create batch: ' + error.message);
+      toast.error('Unable to record production. Please check the batch details and try again.');
+      console.error('record production failed', error);
       setSubmitting(false);
       return;
-    }
-
-    // Update inventory: increase produced_stock and current_stock
-    if (data.product_id) {
-      const { data: inv } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('product_id', data.product_id)
-        .maybeSingle();
-
-      if (inv) {
-        const newProduced = Number(inv.produced_stock) + Number(data.quantity_produced);
-        const newCurrent = Number(inv.current_stock) + Number(data.quantity_produced);
-        await supabase
-          .from('inventory')
-          .update({
-            produced_stock: newProduced,
-            current_stock: newCurrent,
-            last_updated: new Date().toISOString(),
-          })
-          .eq('id', inv.id);
-      }
-
-      // Record stock movement
-      await supabase.from('stock_movements').insert({
-        product_id: data.product_id,
-        movement_type: 'production',
-        quantity: Number(data.quantity_produced),
-        reference_type: 'production_batch',
-        reference_id: data.id,
-        notes: `Batch ${data.batch_number}`,
-        created_by: user?.id,
-      });
     }
 
     toast.success('Production batch recorded successfully');

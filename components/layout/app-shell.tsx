@@ -10,7 +10,7 @@ import { Loader2 } from 'lucide-react';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
-  const { company, loading: companyLoading } = useCompany();
+  const { company, organization, loading: companyLoading } = useCompany();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -51,6 +51,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="lg:pl-64">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
+        {organization?.subscription_status === 'trialing' && organization.trial_end_date && (
+          <div className="mx-4 mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200 lg:mx-6">
+            Free trial ends on {new Date(`${organization.trial_end_date}T00:00:00`).toLocaleDateString()}.
+          </div>
+        )}
         <main className="p-4 lg:p-6 animate-fade-in">{children}</main>
       </div>
     </div>

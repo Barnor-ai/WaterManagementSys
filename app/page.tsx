@@ -8,9 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Droplets, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { UserRole } from '@/lib/types';
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -36,12 +34,11 @@ export default function AuthPage() {
     email: '',
     password: '',
     fullName: '',
-    role: 'sales_officer' as UserRole,
   });
 
   useEffect(() => {
     if (!loading && user && profile) {
-      router.replace('/dashboard');
+      router.replace(profile.organization_id ? '/dashboard' : '/company-setup');
     }
   }, [user, profile, loading, router]);
 
@@ -75,7 +72,7 @@ export default function AuthPage() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
-    const { error } = await signUp(signUpData.email, signUpData.password, signUpData.fullName, signUpData.role);
+    const { error } = await signUp(signUpData.email, signUpData.password, signUpData.fullName);
     if (error) {
       setError(error);
       setSubmitting(false);
@@ -188,6 +185,11 @@ export default function AuthPage() {
                       </div>
                     </div>
                     {error && <p className="text-sm text-destructive">{error}</p>}
+                    <div className="flex justify-end">
+                      <button type="button" className="text-sm text-primary hover:underline" onClick={() => router.push('/forgot-password')}>
+                        Forgot password?
+                      </button>
+                    </div>
                     <Button type="submit" className="w-full" disabled={submitting}>
                       {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign In'}
                     </Button>
@@ -248,24 +250,6 @@ export default function AuthPage() {
                         value={signUpData.password}
                         onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-role">Role</Label>
-                      <Select
-                        value={signUpData.role}
-                        onValueChange={(v) => setSignUpData({ ...signUpData, role: v as UserRole })}
-                      >
-                        <SelectTrigger id="signup-role">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="super_admin">Super Admin</SelectItem>
-                          <SelectItem value="factory_manager">Factory Manager</SelectItem>
-                          <SelectItem value="warehouse_officer">Warehouse Officer</SelectItem>
-                          <SelectItem value="sales_officer">Sales Officer</SelectItem>
-                          <SelectItem value="accountant">Accountant</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                     {error && <p className="text-sm text-destructive">{error}</p>}
                     <Button type="submit" className="w-full" disabled={submitting}>

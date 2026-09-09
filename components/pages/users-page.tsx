@@ -6,6 +6,8 @@ import { PageHeader, StatCard } from '@/components/shared/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { UserCog, Shield, Users, UserCheck } from 'lucide-react';
@@ -17,6 +19,10 @@ export function UsersPage() {
   const { profile } = useAuth();
   const [users, setUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [inviteName, setInviteName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<UserRole>('viewer');
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -28,7 +34,7 @@ export function UsersPage() {
   };
 
   const updateRole = async (userId: string, role: UserRole) => {
-    const { error } = await supabase.from('profiles').update({ role, updated_at: new Date().toISOString() }).eq('id', userId);
+    const { error } = await supabase.rpc('update_member_role', { p_user_id: userId, p_new_role: role });
     if (error) {
       toast.error(error.message);
     } else {
@@ -37,8 +43,22 @@ export function UsersPage() {
     }
   };
 
+  const sendInvitation = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setInviting(true);
+    const { error } = await supabase.functions.invoke('invite-user', { body: { full_name: inviteName, email: inviteEmail, role: inviteRole } });
+    if (error) toast.error(error.message || 'Unable to send invitation');
+    else {
+      toast.success('Invitation email sent');
+      setInviteName('');
+      setInviteEmail('');
+      setInviteRole('viewer');
+    }
+    setInviting(false);
+  };
+
   const toggleActive = async (userId: string, isActive: boolean) => {
-    const { error } = await supabase.from('profiles').update({ is_active: !isActive }).eq('id', userId);
+    const { error } = await supabase.rpc('toggle_member_active', { p_user_id: userId, p_is_active: !isActive });
     if (error) {
       toast.error(error.message);
     } else {
@@ -47,19 +67,19 @@ export function UsersPage() {
     }
   };
 
-  if (profile?.role !== 'super_admin') {
+  if (!profile || !['platform_admin', 'org_owner', 'org_admin'].includes(profile.role)) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center space-y-3">
           <Shield className="h-12 w-12 text-muted-foreground mx-auto" />
           <p className="text-lg font-medium">Access Denied</p>
-          <p className="text-sm text-muted-foreground">Only Super Admins can manage users.</p>
+          <p className="text-sm text-muted-foreground">Only organization administrators can manage users.</p>
         </div>
       </div>
     );
   }
 
-  const adminCount = users.filter((u) => u.role === 'super_admin').length;
+  const adminCount = users.filter((u) => ['platform_admin', 'org_owner', 'org_admin'].includes(u.role)).length;
   const activeCount = users.filter((u) => u.is_active).length;
 
   return (
@@ -73,7 +93,19 @@ export function UsersPage() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle>System Users</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Invite a team member</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={sendInvitation} className="grid gap-4 md:grid-cols-[1fr_1fr_180px_auto] md:items-end">
+            <div className="space-y-2"><Label htmlFor="invite-name">Full name</Label><Input id="invite-name" required value={inviteName} onChange={(event) => setInviteName(event.target.value)} placeholder="Team member name" /></div>
+            <div className="space-y-2"><Label htmlFor="invite-email">Email</Label><Input id="invite-email" type="email" required value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="name@company.com" /></div>
+            <div className="space-y-2"><Label htmlFor="invite-role">Role</Label><Select value={inviteRole} onValueChange={(value) => setInviteRole(value as UserRole)}><SelectTrigger id="invite-role"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="org_admin">Organization Administrator</SelectItem><SelectItem value="factory_manager">Factory Manager</SelectItem><SelectItem value="production_officer">Production Officer</SelectItem><SelectItem value="warehouse_manager">Warehouse Manager</SelectItem><SelectItem value="warehouse_officer">Warehouse Officer</SelectItem><SelectItem value="sales_manager">Sales Manager</SelectItem><SelectItem value="sales_officer">Sales Officer</SelectItem><SelectItem value="accountant">Accountant</SelectItem><SelectItem value="finance_manager">Finance Manager</SelectItem><SelectItem value="auditor">Auditor</SelectItem><SelectItem value="viewer">Viewer</SelectItem></SelectContent></Select></div>
+            <Button type="submit" disabled={inviting}>{inviting ? 'Sending...' : 'Send invitation'}</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Organization users</CardTitle></CardHeader>
         <CardContent>
           {loading ? (
             <div className="h-48 flex items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
@@ -101,11 +133,17 @@ export function UsersPage() {
                         <Select value={u.role} onValueChange={(v) => updateRole(u.id, v as UserRole)}>
                           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="super_admin">Super Admin</SelectItem>
+                            <SelectItem value="org_admin">Organization Administrator</SelectItem>
                             <SelectItem value="factory_manager">Factory Manager</SelectItem>
+                            <SelectItem value="production_officer">Production Officer</SelectItem>
+                            <SelectItem value="warehouse_manager">Warehouse Manager</SelectItem>
                             <SelectItem value="warehouse_officer">Warehouse Officer</SelectItem>
+                            <SelectItem value="sales_manager">Sales Manager</SelectItem>
                             <SelectItem value="sales_officer">Sales Officer</SelectItem>
                             <SelectItem value="accountant">Accountant</SelectItem>
+                            <SelectItem value="finance_manager">Finance Manager</SelectItem>
+                            <SelectItem value="auditor">Auditor</SelectItem>
+                            <SelectItem value="viewer">Viewer</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -131,7 +169,7 @@ export function UsersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Module</TableHead>
-                  <TableHead>Super Admin</TableHead><TableHead>Factory Manager</TableHead>
+                  <TableHead>Organization Admin</TableHead><TableHead>Factory Manager</TableHead>
                   <TableHead>Warehouse Officer</TableHead><TableHead>Sales Officer</TableHead>
                   <TableHead>Accountant</TableHead>
                 </TableRow>
