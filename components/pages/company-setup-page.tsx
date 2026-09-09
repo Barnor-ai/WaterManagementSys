@@ -87,10 +87,6 @@ export function CompanySetupPage() {
       toast.error('Company name is required');
       return;
     }
-    if (!logoUrl) {
-      toast.error('Company logo is required');
-      return;
-    }
 
     setSaving(true);
     try {
@@ -131,7 +127,7 @@ export function CompanySetupPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Logo upload */}
               <div className="space-y-3">
-                <Label className="text-base font-semibold">Company Logo <span className="text-destructive">*</span></Label>
+                <Label className="text-base font-semibold">Company Logo</Label>
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   onDrop={handleDrop}

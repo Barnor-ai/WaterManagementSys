@@ -5,6 +5,7 @@ import { AuthProvider } from '@/lib/auth-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import { CurrencyProvider } from '@/lib/currency-context';
 import { CompanyProvider } from '@/lib/company-context';
+import { Toaster } from '@/components/ui/sonner';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -39,7 +40,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <CurrencyProvider>
             <CompanyProvider>
-              <AuthProvider>{children}</AuthProvider>
+              <AuthProvider>
+                {children}
+                <Toaster />
+              </AuthProvider>
             </CompanyProvider>
           </CurrencyProvider>
         </ThemeProvider>
