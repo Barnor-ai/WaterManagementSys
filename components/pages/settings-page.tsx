@@ -17,8 +17,9 @@ import { useCurrency } from '@/lib/currency-context';
 import { useCompany } from '@/lib/company-context';
 import { supabase } from '@/lib/supabase/client';
 import { ROLE_LABELS, ROLE_COLORS } from '@/lib/types';
-import { Shield, Bell, Database, Palette, Clock, Coins, Building2, Upload, Loader2, ImageIcon } from 'lucide-react';
+import { Shield, Bell, Database, Palette, Clock, Coins, Building2, Upload, Loader2, ImageIcon, CreditCard, ArrowUpRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { fetchSubscription, SubscriptionSummary } from '@/lib/subscriptions';
 
 export function SettingsPage() {
   const { profile } = useAuth();
@@ -41,6 +42,8 @@ export function SettingsPage() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [savingCompany, setSavingCompany] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
 
   useEffect(() => {
     if (company) {
@@ -59,6 +62,13 @@ export function SettingsPage() {
       setLogoUrl(company.logo_url);
     }
   }, [company]);
+
+  useEffect(() => {
+    fetchSubscription().then(({ data }) => {
+      setSubscription(data);
+      setSubscriptionLoading(false);
+    });
+  }, []);
 
   const handleLogoUpload = useCallback(async (file: File) => {
     if (!file || !profile) return;
@@ -109,9 +119,10 @@ export function SettingsPage() {
       <PageHeader title="Settings" description="Configure your system preferences and security options" />
 
       <Tabs defaultValue="profile">
-        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-6 max-w-3xl">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="company">Company</TabsTrigger>
+          <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
@@ -188,6 +199,31 @@ export function SettingsPage() {
               <Button onClick={handleSaveCompany} disabled={savingCompany || uploading}>
                 {savingCompany ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</> : 'Save Company Profile'}
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Billing */}
+        <TabsContent value="billing">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" /> Billing & Subscription</CardTitle>
+              <CardDescription>Your organization plan, usage, and trial details</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {subscriptionLoading ? <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading subscription...</div> : subscription ? <div className="space-y-6">
+                <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border bg-muted/30 p-4">
+                  <div><p className="text-sm text-muted-foreground">Current plan</p><p className="mt-1 text-2xl font-bold capitalize">{subscription.plan_name}</p><p className="mt-1 text-sm text-muted-foreground">${subscription.price_monthly} / month · {subscription.billing_cycle}</p></div>
+                  <Badge variant={subscription.is_expired ? 'destructive' : 'secondary'} className="capitalize">{subscription.status}</Badge>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-lg border p-4"><p className="text-xs text-muted-foreground">Trial period</p><p className="mt-1 font-semibold">{subscription.trial_start ? new Date(subscription.trial_start).toLocaleDateString() : '—'} – {subscription.trial_end ? new Date(subscription.trial_end).toLocaleDateString() : '—'}</p></div>
+                  <div className="rounded-lg border p-4"><p className="text-xs text-muted-foreground">Days remaining</p><p className="mt-1 font-semibold">{subscription.days_remaining ?? '—'}</p></div>
+                  <div className="rounded-lg border p-4"><p className="text-xs text-muted-foreground">Users</p><p className="mt-1 font-semibold">{subscription.user_count} / {subscription.max_users >= 2147483647 ? 'Unlimited' : subscription.max_users}</p></div>
+                  <div className="rounded-lg border p-4"><p className="text-xs text-muted-foreground">Branches</p><p className="mt-1 font-semibold">{subscription.branch_count} / {subscription.max_branches >= 2147483647 ? 'Unlimited' : subscription.max_branches}</p></div>
+                </div>
+                <div className="flex flex-wrap gap-3"><Button asChild><a href="/upgrade">Upgrade plan <ArrowUpRight className="ml-2 h-4 w-4" /></a></Button><Button asChild variant="outline"><a href="/pricing">View plans</a></Button></div>
+              </div> : <p className="text-sm text-muted-foreground">Subscription details are not available yet. Complete organization setup to begin your trial.</p>}
             </CardContent>
           </Card>
         </TabsContent>

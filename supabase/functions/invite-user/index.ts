@@ -39,12 +39,18 @@ Deno.serve(async (req: Request) => {
     const { data: caller, error: callerError } = await adminClient.from("profiles").select("organization_id, role").eq("id", authData.user.id).maybeSingle();
     if (callerError || !caller?.organization_id || !["platform_admin", "org_owner", "org_admin"].includes(caller.role)) return new Response(JSON.stringify({ error: "Organization administrator access required" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { data: invitation, error: invitationError } = await adminClient.from("user_invitations").insert({ organization_id: caller.organization_id, email, full_name: fullName, role, invited_by: authData.user.id }).select("invitation_token").maybeSingle();
-    if (invitationError || !invitation) return new Response(JSON.stringify({ error: "Unable to create the invitation" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { data: invitationToken, error: invitationError } = await callerClient.rpc("invite_user", {
+      p_email: email,
+      p_full_name: fullName,
+      p_role: role,
+    });
+    if (invitationError || !invitationToken) {
+      return new Response(JSON.stringify({ error: invitationError?.message ?? "Unable to create the invitation" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     const { error: emailError } = await adminClient.auth.admin.inviteUserByEmail(email);
     if (emailError) {
-      await adminClient.from("user_invitations").update({ status: "revoked" }).eq("invitation_token", invitation.invitation_token);
+      await adminClient.from("user_invitations").update({ status: "revoked" }).eq("invitation_token", invitationToken);
       return new Response(JSON.stringify({ error: "Unable to send the invitation email" }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

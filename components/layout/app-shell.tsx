@@ -27,6 +27,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [loading, companyLoading, user, profile, company, pathname, router]);
 
+  useEffect(() => {
+    if (!loading && !companyLoading && user && organization && pathname !== '/upgrade' && pathname !== '/settings' && pathname !== '/pricing' && pathname !== '/company-setup') {
+      const today = new Date().toISOString().slice(0, 10);
+      const expired = (organization.subscription_status === 'trialing' && Boolean(organization.trial_end_date && organization.trial_end_date < today))
+        || (Boolean(organization.subscription_end_date && organization.subscription_end_date < today));
+      if (expired) router.replace('/upgrade');
+    }
+  }, [loading, companyLoading, user, organization, pathname, router]);
+
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -51,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="lg:pl-64">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
-        {organization?.subscription_status === 'trialing' && organization.trial_end_date && (
+        {organization?.subscription_status === 'trialing' && organization.trial_end_date && organization.trial_end_date >= new Date().toISOString().slice(0, 10) && (
           <div className="mx-4 mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200 lg:mx-6">
             Free trial ends on {new Date(`${organization.trial_end_date}T00:00:00`).toLocaleDateString()}.
           </div>
